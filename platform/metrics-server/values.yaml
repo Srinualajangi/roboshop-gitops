@@ -1,0 +1,3 @@
+# file: roboshop-gitops/platform/metrics-server/values.yaml
+args:
+  - --kubelet-insecure-tls     # kind's kubelets use self-signed certs (never do this on EKS)

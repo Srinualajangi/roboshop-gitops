@@ -1,0 +1,41 @@
+# Loki single binary, filesystem storage. Check keys: helm show values grafana/loki --version <v> | less
+deploymentMode: SingleBinary
+loki:
+  auth_enabled: false                 # single tenant; multi-tenant Loki needs an X-Scope-OrgID header
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-04-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+  limits_config:
+    retention_period: 48h
+  compactor:
+    retention_enabled: true
+    delete_request_store: filesystem
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: standard
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { memory: 768Mi }
+# the scalable targets are unused in SingleBinary mode
+read:    { replicas: 0 }
+write:   { replicas: 0 }
+backend: { replicas: 0 }
+gateway: { enabled: false }           # Grafana/Alloy talk straight to the loki Service on :3100
+chunksCache:  { enabled: false }      # memcached caches — production performance, wasted memory here
+resultsCache: { enabled: false }
+lokiCanary:   { enabled: false }
+test:         { enabled: false }
+minio:        { enabled: false }

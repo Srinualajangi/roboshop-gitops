@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  namespace: roboshop-prod
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip            # ALB -> pod IPs directly (VPC CNI)
+    alb.ingress.kubernetes.io/group.name: roboshop       # all Ingresses in this group share ONE ALB
+    alb.ingress.kubernetes.io/group.order: "100"         # evaluated after more specific hosts (argocd = 10)
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/inbound-cidrs: ${MYIP}/32  # lab: only you. Real prod: 0.0.0.0/0 + WAF
+    alb.ingress.kubernetes.io/tags: Project=roboshop,Environment=eks-sprint
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web          # must match your web Service name: kubectl -n roboshop-prod get svc
+                port:
+                  number: 8080

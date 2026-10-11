@@ -1,0 +1,2 @@
+env:
+  PDO_URL: "mysql:host=$EP;dbname=ratings;charset=utf8mb4"

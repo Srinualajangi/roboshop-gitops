@@ -1,0 +1,18 @@
+# fast-track kit: Day 46 personas (Roles/RoleBindings). Nothing applied them after Day 52 retired steps/platform.sh.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-rbac
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"     # after the namespaces (-3)
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+    targetRevision: main
+    path: platform/rbac
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated: { prune: true, selfHeal: true }

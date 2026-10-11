@@ -1,0 +1,106 @@
+# kube-prometheus-stack — lab sizing. Check keys with:
+#   helm show values prometheus-community/kube-prometheus-stack --version <v> | less
+crds:
+  enabled: false                 # CRDs come from the prometheus-operator-crds app (wave -5)
+
+fullnameOverride: kps            # short, predictable names: kps-prometheus, kps-alertmanager, kps-operator
+
+# kind runs the control-plane components bound to 127.0.0.1, so Prometheus cannot scrape them.
+# Leaving these on gives you permanent TargetDown alerts that teach you to ignore alerts. Turn them off.
+kubeEtcd:              { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeScheduler:         { enabled: false }
+kubeProxy:             { enabled: false }
+
+defaultRules:
+  create: true
+  rules:
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+
+prometheusOperator:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { memory: 256Mi }
+
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+    retention: 2d                # the disk dies every night anyway
+    retentionSize: 4GB
+    # THE "release label" GOTCHA: by default Prometheus only selects ServiceMonitors/PodMonitors/Rules
+    # that carry the label  release: <helm release name>. Objects without it are silently ignored.
+    # false = "select every ServiceMonitor/PodMonitor/PrometheusRule/Probe in every namespace".
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    resources:
+      requests: { cpu: 200m, memory: 1Gi }
+      limits:   { memory: 2Gi }
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard
+          accessModes: ["ReadWriteOnce"]
+          resources: { requests: { storage: 5Gi } }
+
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests: { cpu: 20m, memory: 64Mi }
+      limits:   { memory: 128Mi }
+
+grafana:
+  fullnameOverride: grafana      # Service "grafana", port 80
+  admin:
+    existingSecret: grafana-admin   # created by the ExternalSecret below
+    userKey: admin-user
+    passwordKey: admin-password
+  grafana.ini:
+    server:
+      root_url: http://grafana.roboshop.test:8080
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits:   { memory: 384Mi }
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard   # any ConfigMap with this label becomes a dashboard (Day 78)
+      labelValue: "1"
+      searchNamespace: ALL
+      folderAnnotation: grafana_folder   # Day 78: ConfigMap annotation -> Grafana folder
+      provider:
+        foldersFromFilesStructure: true
+  additionalDataSources:               # Days 79-80 (fast-track kit): logs + traces next to metrics
+    - name: Loki
+      type: loki
+      uid: loki
+      url: http://loki.logging.svc:3100
+      access: proxy
+    - name: Tempo
+      type: tempo
+      uid: tempo
+      url: http://tempo.tracing.svc:3200
+      access: proxy
+      jsonData:
+        tracesToLogsV2: { datasourceUid: loki }
+        serviceMap: { datasourceUid: prometheus }
+  persistence:
+    enabled: false               # dashboards come from Git, not from clicking
+
+kube-state-metrics:
+  fullnameOverride: kube-state-metrics
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }
+    limits:   { memory: 128Mi }
+
+prometheus-node-exporter:
+  fullnameOverride: node-exporter
+  resources:
+    requests: { cpu: 20m, memory: 32Mi }
+    limits:   { memory: 64Mi }

@@ -1,0 +1,30 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signatures
+  annotations:
+    policies.kyverno.io/description: "roboshop-prod only runs images signed by our GitHub Actions workflow (cosign keyless)."
+spec:
+  webhookTimeoutSeconds: 30
+  background: false
+  rules:
+    - name: verify-cosign-keyless
+      match:
+        any:
+          - resources: { kinds: [Pod], namespaces: ["roboshop-prod"] }
+      verifyImages:
+        - imageReferences:
+            - "AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/roboshop/*"
+          failureAction: Audit
+          mutateDigest: false        # fast-track kit: Kyverno rejects mutateDigest=true with Audit; set true when you switch to Enforce
+          verifyDigest: true
+          required: true
+          imageRegistryCredentials:
+            secrets: ["ecr-pull"]          # secret lives in the kyverno namespace (Step 2)
+          attestors:
+            - entries:
+                - keyless:
+                    subject: "https://github.com/Srinualajangi/roboshop-app/.github/workflows/*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev

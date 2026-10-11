@@ -1,0 +1,25 @@
+# roboshop-gitops/platform/sonarqube/values.yaml
+community:
+  enabled: true                      # SonarQube Community Build (free)
+monitoringPasscodeSecretName: sonar-monitoring
+monitoringPasscodeSecretKey: monitoringPasscode
+postgresql:
+  enabled: false                     # we run our own official postgres
+jdbcOverwrite:
+  enabled: true
+  jdbcUrl: "jdbc:postgresql://sonar-postgres.sonarqube.svc:5432/sonarqube"
+  jdbcUsername: sonarqube
+  jdbcSecretName: sonar-db
+  jdbcSecretPasswordKey: password
+initSysctl:
+  enabled: false                     # we set sysctls on the host (Step 1), no privileged init container
+initFs:
+  enabled: false
+persistence:
+  enabled: false                     # analysis history is rebuilt; projects re-created by the pipeline
+resources:
+  requests: { cpu: 500m, memory: 2Gi }
+  limits:   { memory: 3Gi }
+service:
+  type: ClusterIP
+  externalPort: 9000

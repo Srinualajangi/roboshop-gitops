@@ -1,0 +1,22 @@
+{{- if .Values.route.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "svc.name" . }}
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
+spec:
+  parentRefs:
+    - name: {{ .Values.route.gateway.name }}
+      namespace: {{ .Values.route.gateway.namespace }}
+  hostnames:
+    - {{ required "route.hostname is required when route.enabled" .Values.route.hostname | quote }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: {{ .Values.route.path }}
+      backendRefs:
+        - name: {{ include "svc.name" . }}
+          port: {{ .Values.service.port }}
+{{- end }}

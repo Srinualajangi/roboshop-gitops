@@ -1,0 +1,17 @@
+{{- /* Only rendered when the Prometheus Operator CRDs exist, so the chart also works on a bare cluster */ -}}
+{{- if and .Values.metrics.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "svc.name" . }}
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "svc.selector" . | nindent 6 }}
+  endpoints:
+    - port: {{ .Values.metrics.portName | default .Values.portName }}
+      path: {{ .Values.metrics.path | default "/metrics" }}
+      interval: 30s
+{{- end }}

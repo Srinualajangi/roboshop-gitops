@@ -1,0 +1,35 @@
+# merged from several guide days (comments of the merged keys were lost)
+global:
+  domain: argocd.roboshop.test
+configs:
+  params:
+    server.insecure: true
+  cm:
+    timeout.reconciliation: 60s
+    admin.enabled: 'true'
+    resource.customizations.health.argoproj.io_Application: "hs = {}\nhs.status = \"Progressing\"\nhs.message = \"\"\nif obj.status ~= nil then\n  if obj.status.health ~= nil then\n    hs.status = obj.status.health.status\n\
+      \    if obj.status.health.message ~= nil then\n      hs.message = obj.status.health.message\n    end\n  end\nend\nreturn hs\n"
+    accounts.dev-viewer: login
+  rbac:
+    policy.default: role:readonly
+    policy.csv: "# role:dev-deployer may sync dev only \u2014 never qa/prod\np, role:dev-deployer, applications, get,  roboshop-dev/*, allow\np, role:dev-deployer, applications, sync, roboshop-dev/*, allow\n\
+      p, role:dev-deployer, applications, sync, roboshop-prod/*, deny\ng, dev-viewer, role:dev-deployer\n"
+dex:
+  enabled: false
+notifications:
+  enabled: false
+controller:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+repoServer:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+server:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi

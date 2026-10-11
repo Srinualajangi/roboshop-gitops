@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalogue
+  namespace: roboshop-dev
+  labels:
+    app: catalogue
+    tier: api
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: catalogue          # MUST match the pod template labels below
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1             # at most 1 extra pod during an update
+      maxUnavailable: 0       # never drop below 2 ready pods
+  template:
+    metadata:
+      labels:
+        app: catalogue
+        tier: api
+    spec:
+      imagePullSecrets:
+        - name: ecr-pull
+      containers:
+        - name: catalogue
+          image: $REGISTRY/roboshop/catalogue:$IMAGE_TAG
+          ports:
+            - name: http
+              containerPort: 8080

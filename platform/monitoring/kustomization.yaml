@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - manifests/externalsecret-grafana.yaml
+  - manifests/httproutes.yaml
+  - rules/roboshop-alerts.yaml        # fast-track kit: Day 81 rules were never added to the kustomization
+  - rules/roboshop-slo.yaml           # fast-track kit: Day 82 SLO recording + burn-rate rules
+  # - manifests/externalsecret-alertmanager.yaml   # enable after creating /roboshop/monitoring/slack-webhook (Day 81)
+configMapGenerator:
+  - name: dashboard-roboshop-golden-signals
+    files:
+      - dashboards/roboshop-golden-signals.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+      annotations:
+        grafana_folder: RoboShop

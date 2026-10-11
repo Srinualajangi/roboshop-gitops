@@ -1,0 +1,12 @@
+# EKS overrides layered on top of envs/prod/_common.yaml + envs/prod/<svc>.yaml  (helm: last -f wins)
+# fast-track kit: the reference used "httpRoute:" but the chart key is "route:".
+imagePullSecrets: []        # EKS nodes pull from ECR with the node IAM role (AmazonEC2ContainerRegistryReadOnly)
+route:
+  enabled: false            # no Traefik / Gateway API here; the ALB Ingress in envs-eks/manifests/ is the entry point
+rollout:
+  enabled: false            # Argo Rollouts is not installed on EKS in the express path
+hpa:
+  enabled: false
+replicaCount: 1             # 2 small Spot nodes: one replica of everything keeps the session cheap
+# nodeSelector pool=prod from envs/prod still works: the EKS node group is labelled pool=prod.
+# StatefulSets use the default StorageClass (gp3, created by the "gp3" add-on).

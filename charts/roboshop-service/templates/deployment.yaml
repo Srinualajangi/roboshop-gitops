@@ -1,0 +1,28 @@
+{{- /* A Deployment unless this service is a StatefulSet or an Argo Rollout (Day 86) */ -}}
+{{- if and (eq .Values.workload "Deployment") (not .Values.rollout.enabled) }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "svc.name" . }}
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.hpa.enabled }}
+  replicas: {{ .Values.replicaCount }}     # omitted when the HPA owns the replica count
+  {{- end }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      {{- include "svc.selector" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    {{- include "svc.podTemplate" . | nindent 4 }}
+{{- end }}

@@ -1,0 +1,80 @@
+# roboshop-gitops/platform/jenkins/values.yaml — fast-track kit version.
+# Fixes vs the reference copy: no "<version-from-chart-defaults>" placeholders (the chart's own pinned
+# installPlugins are used), and the Day 71/73 credentials + SonarQube JCasC live under controller: (not agent:).
+# Check keys for your chart version:  helm show values jenkins/jenkins --version <v> | less
+controller:
+  numExecutors: 0                       # the controller never builds; every build runs in a pod (Day 70)
+  jenkinsUrl: http://jenkins.roboshop.test:8080/
+  admin:
+    createSecret: false
+    existingSecret: jenkins-admin       # ExternalSecret from SSM /roboshop/ci/jenkins-admin
+    userKey: jenkins-admin-user
+    passwordKey: jenkins-admin-password
+  resources:
+    requests: { cpu: 250m, memory: 1Gi }
+    limits:   { memory: 2Gi }
+  javaOpts: -XX:MaxRAMPercentage=70
+  # installPlugins: not set -> the chart's tested defaults (kubernetes, workflow-aggregator, git, configuration-as-code)
+  additionalPlugins:
+    - job-dsl
+    - pipeline-utility-steps
+    - junit
+    - sonar
+    - pipeline-stage-view
+    - timestamper
+    - ws-cleanup
+  installLatestPlugins: false
+  additionalExistingSecrets:            # keys become ${jenkins-credentials-<key>} inside JCasC
+    - name: jenkins-credentials
+      keyName: sonar-token
+    - name: jenkins-credentials
+      keyName: gitops-token
+  JCasC:
+    defaultConfig: true
+    configScripts:
+      welcome: |
+        jenkins:
+          systemMessage: "RoboShop lab Jenkins. Configured by JCasC from roboshop-gitops. UI changes are lost at make down."
+      security: |
+        jenkins:
+          securityRealm:
+            local:
+              allowsSignup: false
+              users:
+                - id: "${chart-admin-username}"
+                  password: "${chart-admin-password}"
+          authorizationStrategy:
+            loggedInUsersCanDoAnything:
+              allowAnonymousRead: false
+      credentials: |
+        credentials:
+          system:
+            domainCredentials:
+              - credentials:
+                  - string:
+                      scope: GLOBAL
+                      id: sonar-token
+                      description: "SonarQube token (SSM /roboshop/ci/sonar-token via ESO)"
+                      secret: "${jenkins-credentials-sonar-token}"
+                  - string:
+                      scope: GLOBAL
+                      id: gitops-token
+                      description: "GitHub fine-grained PAT for roboshop-gitops (SSM /roboshop/ci/gitops-token)"
+                      secret: "${jenkins-credentials-gitops-token}"
+      sonar: |
+        unclassified:
+          sonarGlobalConfiguration:
+            buildWrapperEnabled: true
+            installations:
+              - name: sonarqube
+                serverUrl: "http://sonarqube-sonarqube.sonarqube.svc.cluster.local:9000"
+                credentialsId: sonar-token
+  sidecars:
+    configAutoReload:
+      enabled: true
+persistence:
+  enabled: false                        # jobs come from Job DSL in Git (Day 73), not from clicking
+agent:
+  enabled: true
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }

@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb               # apps connect to mongodb:27017
+  namespace: roboshop-dev
+  labels: {app: mongodb}
+spec:
+  selector: {app: mongodb}
+  ports:
+    - {name: mongo, port: 27017, targetPort: 27017}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-headless      # stable per-pod DNS: mongodb-0.mongodb-headless
+  namespace: roboshop-dev
+  labels: {app: mongodb}
+spec:
+  clusterIP: None
+  selector: {app: mongodb}
+  ports:
+    - {name: mongo, port: 27017, targetPort: 27017}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: roboshop-dev
+  labels: {app: mongodb, tier: data}
+spec:
+  serviceName: mongodb-headless
+  replicas: 1
+  selector:
+    matchLabels: {app: mongodb}
+  template:
+    metadata:
+      labels: {app: mongodb, tier: data}
+    spec:
+      imagePullSecrets: [{name: ecr-pull}]
+      containers:
+        - name: mongodb
+          image: $REGISTRY/roboshop/mongodb:$IMAGE_TAG
+          ports: [{containerPort: 27017, name: mongo}]
+          volumeMounts:
+            - {name: data, mountPath: /data/db}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 1Gi

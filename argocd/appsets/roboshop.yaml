@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: roboshop
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]   # a typo in a parameter fails loudly instead of rendering ""
+  generators:
+    - git:
+        repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+        revision: main
+        files:
+          - path: "envs/*/*.yaml"            # envs/<env>/<service>.yaml -> one Application each
+          - path: "envs/*/_common.yaml"      # shared values are NOT a service
+            exclude: true
+  template:
+    metadata:
+      name: '{{ trimSuffix ".yaml" .path.filename }}-{{ .path.basename }}'   # e.g. cart-prod
+      labels:
+        app.kubernetes.io/part-of: roboshop
+        env: '{{ .path.basename }}'
+        service: '{{ trimSuffix ".yaml" .path.filename }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: 'roboshop-{{ .path.basename }}'      # project can't be set in templatePatch — it must be here
+      source:
+        repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+        targetRevision: main
+        path: charts/roboshop-service
+        helm:
+          releaseName: '{{ trimSuffix ".yaml" .path.filename }}'
+          ignoreMissingValueFiles: true
+          valueFiles:
+            - '../../envs/{{ .path.basename }}/_common.yaml'
+            - '../../envs/{{ .path.basename }}/{{ .path.filename }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'roboshop-{{ .path.basename }}'
+      syncPolicy:
+        syncOptions:
+          - ServerSideApply=true
+          - PruneLast=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 3m
+  # Only dev gets an "automated" block. qa/prod have NONE, so they never deploy without a human.
+  templatePatch: |
+    {{- if eq .path.basename "dev" }}
+    spec:
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+    {{- end }}

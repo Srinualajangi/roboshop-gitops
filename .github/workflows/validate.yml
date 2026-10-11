@@ -1,0 +1,36 @@
+# .github/workflows/validate.yml — every PR to roboshop-gitops must render cleanly.
+name: validate
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  helm:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint the chart
+        run: helm lint charts/roboshop-service
+      - name: Render every env × service values file
+        run: |
+          set -e
+          for f in envs/*/*.yaml; do
+            case "$(basename "$f")" in _*) continue;; esac            # skip _common.yaml
+            env=$(basename "$(dirname "$f")"); svc=$(basename "$f" .yaml)
+            common=""; [ -f "envs/$env/_common.yaml" ] && common="-f envs/$env/_common.yaml"
+            helm template "$svc-$env" charts/roboshop-service $common -f "$f" --namespace "roboshop-$env" > /dev/null \
+              || { echo "::error file=$f::helm template failed"; exit 1; }
+            echo "ok  $f"
+          done
+      - name: qa/prod must pin ECR images by digest
+        run: |
+          bad=0
+          for f in envs/qa/*.yaml envs/prod/*.yaml; do
+            repo=$(yq '.image.repository // ""' "$f")
+            case "$repo" in *amazonaws.com*) ;; *) continue;; esac       # official images (redis, rabbitmq) are skipped
+            yq '.image.digest // ""' "$f" | grep -q '^sha256:' || { echo "::error file=$f::no image.digest"; bad=1; }
+          done
+          exit $bad

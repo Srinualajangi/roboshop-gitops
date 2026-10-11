@@ -1,0 +1,13 @@
+# Tempo single binary. check keys: helm show values grafana/tempo --version <v> | less
+tempo:
+  retention: 24h
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: "0.0.0.0:4317" }
+        http: { endpoint: "0.0.0.0:4318" }
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { memory: 512Mi }
+persistence:
+  enabled: false            # traces die nightly anyway

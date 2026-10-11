@@ -1,0 +1,40 @@
+# Traefik for the kind lab.
+# kind maps workstation host :80 -> control-plane container :30080, so Traefik's web entrypoint is NodePort 30080.
+service:
+  type: NodePort
+ports:
+  web:
+    nodePort: 30080
+  websecure:
+    nodePort: 30443
+providers:
+  kubernetesGateway:
+    enabled: true          # implement Gateway API (GatewayClass "traefik")
+  kubernetesIngress:
+    enabled: false         # we use Gateway API only
+# The chart creates a Gateway called "traefik-gateway" in this namespace.
+gateway:
+  listeners:
+    web:
+      namespacePolicy:
+        from: All          # HTTPRoutes in roboshop-dev/qa/prod (and later argocd, monitoring) may attach
+nodeSelector:
+  pool: general            # keep the edge off the prod pool
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+metrics:
+  prometheus:
+    entryPoint: metrics            # Traefik serves /metrics on its "metrics" entrypoint (port 9100 by default)
+    addEntryPointsLabels: true
+    addRoutersLabels: true
+    addServicesLabels: true
+    # Default buckets are 0.1,0.3,1.2,5 — no 0.5 boundary, so "requests faster than 500ms" (our SLO, Day 82) would be impossible to compute.
+    buckets: "0.05,0.1,0.25,0.5,1,2.5,5"
+    service:
+      enabled: true
+    serviceMonitor:
+      enabled: true                # needs the ServiceMonitor CRD -> that is why the CRDs app is wave -5

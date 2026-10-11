@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: roboshop-prod
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: RoboShop prod — manual sync only, change freeze Fri 17:00 to Mon 08:00
+  sourceRepos:
+    - https://github.com/Srinualajangi/roboshop-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: roboshop-prod
+  clusterResourceWhitelist: []
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota
+    - group: ""
+      kind: LimitRange
+  syncWindows:
+    - kind: deny
+      schedule: "0 17 * * 5"      # Friday 17:00 ...
+      duration: 63h               # ... until Monday 08:00
+      timeZone: "Asia/Kolkata"
+      applications: ["*"]
+      manualSync: true            # emergency fixes may still be synced by a human (who must have RBAC to do it)

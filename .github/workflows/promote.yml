@@ -1,0 +1,61 @@
+# .github/workflows/promote.yml — click-to-promote with an approval gate for prod.
+name: promote
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        type: choice
+        options: [web, catalogue, user, cart, shipping, payment, ratings, dispatch, mongodb, mysql]
+      from:
+        type: choice
+        options: [dev, qa]
+      to:
+        type: choice
+        options: [qa, prod]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: promote-${{ inputs.service }}-${{ inputs.to }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.to }}           # 'prod' pauses here for a required reviewer
+    env:
+      SVC: ${{ inputs.service }}
+      FROM: ${{ inputs.from }}
+      TO: ${{ inputs.to }}
+      GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITOPS_TOKEN }}   # so the PR triggers validate.yml (GITHUB_TOKEN PRs don't)
+      - name: Guard rails
+        run: |
+          case "$FROM->$TO" in
+            "dev->qa"|"qa->prod") ;;
+            *) echo "::error::Only dev->qa or qa->prod. '$FROM->$TO' skips an environment (and skips DAST in qa)."; exit 1;;
+          esac
+      - name: Copy digest with scripts/promote.sh
+        run: bash scripts/promote.sh "$SVC" "$FROM" "$TO"
+      - name: Exactly one file may change
+        run: |
+          git status --porcelain
+          n=$(git status --porcelain | wc -l)
+          [ "$n" -eq 1 ] || { echo "::error::expected 1 changed file, got $n"; exit 1; }
+      - name: Open the promotion PR
+        run: |
+          digest=$(yq '.image.digest' "envs/$TO/$SVC.yaml"); tag=$(yq '.image.tag' "envs/$TO/$SVC.yaml")
+          git config user.name "roboshop-ci"; git config user.email "roboshop-ci@users.noreply.github.com"
+          branch="promote-$TO-$SVC-$(date +%Y%m%d%H%M%S)"
+          git switch -c "$branch"
+          git commit -am "promote($TO): $SVC $tag" -m "digest: $digest" -m "from: $FROM, approved run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            -m "rollback: git revert this commit, then argocd app sync $SVC-$TO"
+          git push -u origin "$branch"
+          gh pr create --base main --head "$branch" --title "promote($TO): $SVC $tag" \
+            --body "Promotes \`$SVC\` from **$FROM** to **$TO** at \`$digest\`. After merge: \`argocd app sync $SVC-$TO\`."
+          if [ "$TO" = "qa" ]; then gh pr merge "$branch" --squash --auto --delete-branch; fi
+          # prod: the PR stays open for you to read the diff and merge by hand.

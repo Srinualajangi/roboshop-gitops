@@ -1,0 +1,106 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: roboshop-slo
+  namespace: monitoring
+spec:
+  groups:
+    - name: roboshop.slo.recording
+      interval: 30s
+      rules:
+        - record: roboshop:sli_availability_errors:ratio_rate5m
+          expr: |
+            label_replace(
+              (sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*", code=~"5.."}[5m])) or (0 * sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[5m]))))
+              / clamp_min(sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[5m])), 1e-9),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+        - record: roboshop:sli_latency_slow:ratio_rate5m
+          expr: |
+            label_replace(
+              1 - (
+                sum by (service) (rate(traefik_service_request_duration_seconds_bucket{service=~"roboshop-(dev|qa|prod)-web.*", le="0.5"}[5m]))
+                / clamp_min(sum by (service) (rate(traefik_service_request_duration_seconds_count{service=~"roboshop-(dev|qa|prod)-web.*"}[5m])), 1e-9)
+              ),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+        - record: roboshop:sli_availability_errors:ratio_rate30m
+          expr: |
+            label_replace(
+              (sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*", code=~"5.."}[30m])) or (0 * sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[30m]))))
+              / clamp_min(sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[30m])), 1e-9),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+        - record: roboshop:sli_latency_slow:ratio_rate30m
+          expr: |
+            label_replace(
+              1 - (
+                sum by (service) (rate(traefik_service_request_duration_seconds_bucket{service=~"roboshop-(dev|qa|prod)-web.*", le="0.5"}[30m]))
+                / clamp_min(sum by (service) (rate(traefik_service_request_duration_seconds_count{service=~"roboshop-(dev|qa|prod)-web.*"}[30m])), 1e-9)
+              ),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+        - record: roboshop:sli_availability_errors:ratio_rate1h
+          expr: |
+            label_replace(
+              (sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*", code=~"5.."}[1h])) or (0 * sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[1h]))))
+              / clamp_min(sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[1h])), 1e-9),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+        - record: roboshop:sli_latency_slow:ratio_rate1h
+          expr: |
+            label_replace(
+              1 - (
+                sum by (service) (rate(traefik_service_request_duration_seconds_bucket{service=~"roboshop-(dev|qa|prod)-web.*", le="0.5"}[1h]))
+                / clamp_min(sum by (service) (rate(traefik_service_request_duration_seconds_count{service=~"roboshop-(dev|qa|prod)-web.*"}[1h])), 1e-9)
+              ),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+        - record: roboshop:sli_availability_errors:ratio_rate6h
+          expr: |
+            label_replace(
+              (sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*", code=~"5.."}[6h])) or (0 * sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[6h]))))
+              / clamp_min(sum by (service) (rate(traefik_service_requests_total{service=~"roboshop-(dev|qa|prod)-web.*"}[6h])), 1e-9),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+        - record: roboshop:sli_latency_slow:ratio_rate6h
+          expr: |
+            label_replace(
+              1 - (
+                sum by (service) (rate(traefik_service_request_duration_seconds_bucket{service=~"roboshop-(dev|qa|prod)-web.*", le="0.5"}[6h]))
+                / clamp_min(sum by (service) (rate(traefik_service_request_duration_seconds_count{service=~"roboshop-(dev|qa|prod)-web.*"}[6h])), 1e-9)
+              ),
+              "env", "$1", "service", "roboshop-(dev|qa|prod)-.*")
+    - name: roboshop.slo.alerts
+      rules:
+        - alert: RoboshopAvailabilityFastBurn
+          expr: |
+            roboshop:sli_availability_errors:ratio_rate1h > (14.4 * 0.005)
+              and roboshop:sli_availability_errors:ratio_rate5m > (14.4 * 0.005)
+          for: 2m
+          labels: { severity: critical, slo: availability }
+          annotations:
+            summary: "{{ $labels.env }}: availability error budget burning at >14.4x (2% of 30-day budget per hour)"
+            description: "1h error ratio {{ $value | humanizePercentage }}. At this rate the whole 30-day budget is gone in ~2 days."
+            runbook_url: https://github.com/Srinualajangi/roboshop-infra/blob/main/docs/runbooks/slo-burn.md
+        - alert: RoboshopAvailabilitySlowBurn
+          expr: |
+            roboshop:sli_availability_errors:ratio_rate6h > (6 * 0.005)
+              and roboshop:sli_availability_errors:ratio_rate30m > (6 * 0.005)
+          for: 15m
+          labels: { severity: warning, slo: availability }
+          annotations:
+            summary: "{{ $labels.env }}: availability error budget burning at >6x (5% per 6 hours)"
+            description: "6h error ratio {{ $value | humanizePercentage }}."
+            runbook_url: https://github.com/Srinualajangi/roboshop-infra/blob/main/docs/runbooks/slo-burn.md
+        - alert: RoboshopLatencyFastBurn
+          expr: |
+            roboshop:sli_latency_slow:ratio_rate1h > (14.4 * 0.01)
+              and roboshop:sli_latency_slow:ratio_rate5m > (14.4 * 0.01)
+          for: 2m
+          labels: { severity: critical, slo: latency }
+          annotations:
+            summary: "{{ $labels.env }}: >14.4% of requests slower than 500ms"
+            runbook_url: https://github.com/Srinualajangi/roboshop-infra/blob/main/docs/runbooks/slo-burn.md
+        - alert: RoboshopLatencySlowBurn
+          expr: |
+            roboshop:sli_latency_slow:ratio_rate6h > (6 * 0.01)
+              and roboshop:sli_latency_slow:ratio_rate30m > (6 * 0.01)
+          for: 15m
+          labels: { severity: warning, slo: latency }
+          annotations:
+            summary: "{{ $labels.env }}: >6% of requests slower than 500ms over 6h"
+            runbook_url: https://github.com/Srinualajangi/roboshop-infra/blob/main/docs/runbooks/slo-burn.md

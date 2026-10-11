@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: jenkins
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "20" # after ESO (secrets) and Traefik
+spec:
+  project: default # or your platform AppProject
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: jenkins
+  sources:
+    - repoURL: https://charts.jenkins.io
+      chart: jenkins
+      targetRevision: 5.9.68 # <- pin: JENKINS_CHART_VERSION
+      helm:
+        releaseName: jenkins
+        valueFiles:
+          - $values/platform/jenkins/values.yaml
+    - repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+      targetRevision: main
+      path: platform/jenkins/manifests
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    managedNamespaceMetadata:
+      labels:
+        # Build agents need BuildKit with Unconfined seccomp (Day 72). That is not allowed
+        # by baseline or restricted, so this namespace is privileged. Isolate it instead.
+        pod-security.kubernetes.io/enforce: privileged

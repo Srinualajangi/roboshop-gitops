@@ -1,0 +1,16 @@
+# roboshop-gitops/platform/argo-rollouts/values.yaml
+controller:
+  replicas: 1
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true                 # Prometheus scrapes rollout metrics (Phase 8 operator)
+      additionalLabels:
+        release: kube-prometheus-stack   # match your Prometheus serviceMonitorSelector (Day 76)
+dashboard:
+  enabled: true
+  resources:
+    requests: { cpu: 20m, memory: 64Mi }

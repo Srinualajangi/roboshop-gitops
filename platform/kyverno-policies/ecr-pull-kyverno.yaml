@@ -1,0 +1,29 @@
+# workstation — create file ~/work/roboshop-gitops/platform/kyverno-policies/ecr-pull-kyverno.yaml
+# Same pattern as Day 54. If your Day 54 manifests use a different apiVersion (check: kubectl api-resources | grep -i ecrauth), match them.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ECRAuthorizationToken
+metadata:
+  name: ecr-gen
+  namespace: kyverno
+spec:
+  region: us-east-1
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: ecr-pull
+  namespace: kyverno
+spec:
+  refreshInterval: 6h
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ECRAuthorizationToken
+          name: ecr-gen
+  target:
+    name: ecr-pull
+    template:
+      type: kubernetes.io/dockerconfigjson
+      data:
+        .dockerconfigjson: '{"auths":{"{{ .proxy_endpoint | replace "https://" "" }}":{"username":"{{ .username }}","password":"{{ .password }}"}}}'

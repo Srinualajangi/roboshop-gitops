@@ -1,0 +1,96 @@
+# RoboShop access model. Groups come from the authenticator (EKS access entries / SSO); here we test with impersonation.
+# Developers: read everywhere (no secrets), hands-on (exec, port-forward, restart) only in dev.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: roboshop-developer-read}
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, endpoints, configmaps, events, persistentvolumeclaims]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling, policy]
+    resources: [horizontalpodautoscalers, poddisruptionbudgets]
+    verbs: [get, list, watch]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: roboshop-developer-hands-on}
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec, pods/portforward]
+    verbs: [create, get]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [delete]
+  - apiGroups: [apps]
+    resources: [deployments, deployments/scale]
+    verbs: [patch, update]
+---
+# DevOps in prod: operate (scale, restart, delete pods) but no exec and no secrets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: roboshop-prod-operator}
+rules:
+  - apiGroups: ["", apps, autoscaling, policy, gateway.networking.k8s.io]
+    resources: [pods, pods/log, services, endpoints, configmaps, events, deployments, deployments/scale, replicasets, statefulsets, horizontalpodautoscalers, poddisruptionbudgets, httproutes]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, deployments/scale, statefulsets, statefulsets/scale]
+    verbs: [patch, update]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: developers-read, namespace: roboshop-dev}
+subjects: [{kind: Group, name: roboshop-developers, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: roboshop-developer-read, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: developers-read, namespace: roboshop-qa}
+subjects: [{kind: Group, name: roboshop-developers, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: roboshop-developer-read, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: developers-read, namespace: roboshop-prod}
+subjects: [{kind: Group, name: roboshop-developers, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: roboshop-developer-read, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: developers-hands-on, namespace: roboshop-dev}
+subjects: [{kind: Group, name: roboshop-developers, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: roboshop-developer-hands-on, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: devops-edit, namespace: roboshop-dev}
+subjects: [{kind: Group, name: roboshop-devops, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: edit, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: devops-edit, namespace: roboshop-qa}
+subjects: [{kind: Group, name: roboshop-devops, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: edit, apiGroup: rbac.authorization.k8s.io}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: devops-operator, namespace: roboshop-prod}
+subjects: [{kind: Group, name: roboshop-devops, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: roboshop-prod-operator, apiGroup: rbac.authorization.k8s.io}
+---
+# Auditors: read-only everywhere ("view" excludes Secrets by design)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: auditors-view}
+subjects: [{kind: Group, name: roboshop-auditors, apiGroup: rbac.authorization.k8s.io}]
+roleRef: {kind: ClusterRole, name: view, apiGroup: rbac.authorization.k8s.io}

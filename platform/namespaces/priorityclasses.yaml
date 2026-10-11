@@ -1,0 +1,12 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: {name: roboshop-critical}
+value: 100000
+description: "Customer-facing RoboShop services"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: {name: batch-low}
+value: 100
+preemptionPolicy: Never
+description: "Batch / best-effort jobs"

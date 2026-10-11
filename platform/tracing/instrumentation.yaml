@@ -1,0 +1,20 @@
+# One recipe for all languages. Pods reference it as "tracing/roboshop" in their annotation.
+apiVersion: opentelemetry.io/v1alpha1
+kind: Instrumentation
+metadata:
+  name: roboshop
+  namespace: tracing
+spec:
+  exporter:
+    endpoint: http://otel-collector.tracing.svc.cluster.local:4318
+  propagators: [tracecontext, baggage]
+  sampler:
+    type: parentbased_traceidratio
+    argument: "1"                  # keep 100% in the lab; production often 0.05-0.1 (or tail sampling)
+  env:
+    - name: OTEL_EXPORTER_OTLP_PROTOCOL
+      value: http/protobuf         # use 4318/HTTP for every language so one endpoint fits all
+  python:
+    env:
+      - name: OTEL_LOGS_EXPORTER
+        value: none

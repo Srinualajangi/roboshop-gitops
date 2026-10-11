@@ -1,0 +1,17 @@
+{{- /* Blue/green preview Service (Day 88): the new version is reachable here before promotion */ -}}
+{{- if and .Values.rollout.enabled (eq .Values.rollout.strategy "blueGreen") .Values.containerPort }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "svc.name" . }}-preview
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "svc.selector" . | nindent 4 }}
+  ports:
+    - name: {{ .Values.portName }}
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.portName }}
+{{- end }}

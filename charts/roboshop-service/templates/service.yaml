@@ -1,0 +1,21 @@
+{{- if and .Values.service.enabled .Values.containerPort }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "svc.name" . }}
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "svc.selector" . | nindent 4 }}
+  ports:
+    - name: {{ .Values.portName }}
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.portName }}
+    {{- range .Values.service.extraPorts }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .targetPort }}
+    {{- end }}
+{{- end }}

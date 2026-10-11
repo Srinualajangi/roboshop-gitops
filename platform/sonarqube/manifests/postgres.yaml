@@ -1,0 +1,58 @@
+# roboshop-gitops/platform/sonarqube/manifests/postgres.yaml
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: sonar-db, namespace: sonarqube }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: aws-ssm }
+  target: { name: sonar-db }
+  data:
+    - secretKey: password
+      remoteRef: { key: /roboshop/ci/sonar-db-password }
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata: { name: sonar-monitoring, namespace: sonarqube }
+spec:
+  refreshInterval: 1h
+  secretStoreRef: { kind: ClusterSecretStore, name: aws-ssm }
+  target: { name: sonar-monitoring }
+  data:
+    - secretKey: monitoringPasscode
+      remoteRef: { key: /roboshop/ci/sonar-monitoring-passcode }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: sonar-postgres, namespace: sonarqube }
+spec:
+  clusterIP: None
+  selector: { app: sonar-postgres }
+  ports: [{ port: 5432, name: pg }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: sonar-postgres, namespace: sonarqube }
+spec:
+  serviceName: sonar-postgres
+  replicas: 1
+  selector: { matchLabels: { app: sonar-postgres } }
+  template:
+    metadata: { labels: { app: sonar-postgres } }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - { name: POSTGRES_DB, value: sonarqube }
+            - { name: POSTGRES_USER, value: sonarqube }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: sonar-db, key: password } }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          ports: [{ containerPort: 5432 }]
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 512Mi }
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec: { accessModes: [ReadWriteOnce], resources: { requests: { storage: 5Gi } } }

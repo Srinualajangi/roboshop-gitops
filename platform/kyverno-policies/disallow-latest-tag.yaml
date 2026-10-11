@@ -1,0 +1,36 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/description: "Images must be pinned by tag or digest. ':latest' is not reproducible."
+spec:
+  background: true
+  rules:
+    - name: require-a-tag
+      match:
+        any:
+          - resources: { kinds: [Pod], namespaces: ["roboshop-*"] }
+      exclude:
+        any:
+          - resources: { names: ["zap-*"] }    # Day 66 DAST hook job; adjust to your job name
+      validate:
+        failureAction: Audit
+        message: "Image must have a tag or digest."
+        pattern:
+          spec:
+            containers:
+              - image: "*:*"
+    - name: forbid-latest
+      match:
+        any:
+          - resources: { kinds: [Pod], namespaces: ["roboshop-*"] }
+      validate:
+        failureAction: Audit
+        message: "Using ':latest' is not allowed."
+        pattern:
+          spec:
+            =(initContainers):
+              - image: "!*:latest"
+            containers:
+              - image: "!*:latest"

@@ -1,0 +1,25 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-run-as-nonroot
+spec:
+  background: true
+  rules:
+    - name: run-as-non-root
+      match:
+        any:
+          - resources: { kinds: [Pod], namespaces: ["roboshop-*"] }
+      validate:
+        failureAction: Audit
+        message: "runAsNonRoot must be true at pod level or on every container."
+        anyPattern:
+          - spec:
+              securityContext:
+                runAsNonRoot: true
+              containers:
+                - =(securityContext):
+                    =(runAsNonRoot): true
+          - spec:
+              containers:
+                - securityContext:
+                    runAsNonRoot: true

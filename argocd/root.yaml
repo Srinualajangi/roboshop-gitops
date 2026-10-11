@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+    targetRevision: main
+    path: argocd
+    directory:
+      recurse: true
+      exclude: '{root.yaml,eks/*}'   # fast-track kit: EKS apps live in argocd-eks/ and never run on kind
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 10
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

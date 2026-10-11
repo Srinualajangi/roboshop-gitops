@@ -1,0 +1,135 @@
+# Defaults for every RoboShop component. Per-env/per-service overrides live in envs/<env>/<service>.yaml.
+nameOverride: ""            # default = release name (= the DNS name other services use)
+tier: api                   # web | api | data  (used by NetworkPolicies, Day 47)
+workload: Deployment        # Deployment | StatefulSet (Day 42)
+replicaCount: 1
+
+image:
+  registry: ""              # set once per env in envs/<env>/_common.yaml
+  repository: ""            # e.g. roboshop/catalogue
+  tag: ""                   # git sha; ignored when digest is set
+  digest: ""                # sha256:...  (Phase 5 promotes by digest)
+  pullPolicy: IfNotPresent
+imagePullSecrets: [ecr-pull]
+args: []
+
+portName: http
+containerPort: 8080         # 0 = no port (dispatch)
+extraPorts: []              # [{name: management, containerPort: 15672}]
+
+service:
+  enabled: true
+  port: 8080
+  extraPorts: []            # [{name: management, port: 15672, targetPort: 15672}]
+
+env: {}                     # plain env vars:  KEY: value
+secretEnv: []               # [{name: MYSQL_ROOT_PASSWORD, secretName: mysql-root, key: MYSQL_ROOT_PASSWORD}]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 128Mi           # memory request = limit; no CPU limit on purpose (Day 38)
+
+startupProbe: {}            # full Kubernetes probe objects, e.g. {httpGet: {path: /health, port: http}}
+readinessProbe: {}
+livenessProbe: {}
+terminationGracePeriodSeconds: 30
+
+serviceAccount:
+  create: true
+  name: ""
+  automountToken: false     # apps do not talk to the Kubernetes API
+
+podSecurityContext:         # Day 48: every pod passes Pod Security "restricted" unless its values override this
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+tmpDir: true                # writable emptyDir at /tmp (needed with readOnlyRootFilesystem)
+
+persistence:                # StatefulSet only (Day 42)
+  enabled: false
+  size: 1Gi
+  mountPath: /data
+  storageClass: ""          # "" = cluster default (kind: standard, EKS: gp3)
+
+extraVolumes: []
+extraVolumeMounts: []
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+route:                      # Gateway API HTTPRoute (only the web service uses it)
+  enabled: false
+  hostname: ""
+  path: /
+  gateway:
+    name: traefik-gateway
+    namespace: traefik
+
+hpa:                        # Day 44
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  cpuUtilization: 70
+
+pdb:                        # Day 44
+  enabled: false
+  minAvailable: 1
+networkPolicy:              # Day 47
+  enabled: false
+  ingressFrom: []           # app names allowed to call this service, e.g. [web, cart]
+  allowFromGateway: false   # traffic from the Traefik namespace (only web)
+  allowFromNamespaces: []   # e.g. [monitoring] in Phase 8
+  allowInternetEgress: false
+deploymentAnnotations: {}    # on the Deployment/Rollout itself, e.g. reloader.stakater.com/auto: "true" (Day 93)
+
+externalSecret:              # Day 54: Secret built by External Secrets from SSM Parameter Store
+  enabled: false
+  targetName: ""
+  refreshInterval: 1h
+  envFrom: true              # fast-track kit: expose every key of that Secret as env vars
+  data: []                   # [{secretKey: AMQP_USER, remoteKey: /roboshop/dev/rabbitmq/username}]
+
+metrics:                     # Day 76: ServiceMonitor (only rendered if the Prometheus Operator CRDs exist)
+  enabled: false
+  portName: ""               # "" = the main port
+  path: /metrics
+
+zap:                         # Day 66: OWASP ZAP baseline scan as an Argo CD PostSync hook (qa web only)
+  enabled: false
+  image: ghcr.io/zaproxy/zaproxy:stable
+  target: ""
+
+rollout:                     # Days 86-88: Argo Rollouts (off for everyone; prod catalogue + qa web turn it on)
+  enabled: false
+  strategy: canary           # canary | blueGreen
+  canary:
+    analysis: {}             # Day 87: {templates: [...], startingStep: 1, args: [...]}
+    steps:
+      - setWeight: 20
+      - pause: {}            # wait for a human: kubectl argo rollouts promote
+      - setWeight: 50
+      - pause: {duration: 2m}
+      - setWeight: 100
+  blueGreen:
+    autoPromotionEnabled: false
+    scaleDownDelaySeconds: 30
+    prePromotionAnalysis: {} # Day 88
+  successRate:               # Day 87: AnalysisTemplate <name>-success-rate (Traefik metrics in Prometheus)
+    enabled: false
+    threshold: 0.95
+    prometheus: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+  smokeTest:                 # Day 88: AnalysisTemplate <name>-smoke (curl Job)
+    enabled: false

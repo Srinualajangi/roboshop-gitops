@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-namespaces
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+    targetRevision: main
+    path: platform/namespaces
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      prune: false        # never auto-delete a namespace (it would delete everything inside)
+      selfHeal: true

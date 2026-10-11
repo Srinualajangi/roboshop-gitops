@@ -1,0 +1,25 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-registries
+  annotations:
+    policies.kyverno.io/description: "Only our ECR, the official redis/rabbitmq/busybox images the lab pulls from public.ecr.aws, and the smoke-test (curl), OpenTelemetry auto-instrumentation and ZAP images (fast-track kit: matches what really runs, so Enforce is possible)."
+spec:
+  background: true
+  rules:
+    - name: allowed-registries
+      match:
+        any:
+          - resources: { kinds: [Pod], namespaces: ["roboshop-*"] }
+      exclude:
+        any:
+          - resources: { names: ["*-zap-baseline-*"] }     # ZAP Job pods are named <release>-zap-baseline-<hash>
+      validate:
+        failureAction: Audit
+        message: "Image registry not allowed. Use AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/roboshop/*"
+        pattern:
+          spec:
+            =(initContainers):
+              - image: "AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/roboshop/* | public.ecr.aws/docker/library/redis:* | public.ecr.aws/docker/library/rabbitmq:* | public.ecr.aws/docker/library/busybox:* | curlimages/curl:* | ghcr.io/open-telemetry/* | ghcr.io/zaproxy/*"
+            containers:
+              - image: "AWS_ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/roboshop/* | public.ecr.aws/docker/library/redis:* | public.ecr.aws/docker/library/rabbitmq:* | public.ecr.aws/docker/library/busybox:* | curlimages/curl:* | ghcr.io/open-telemetry/* | ghcr.io/zaproxy/*"

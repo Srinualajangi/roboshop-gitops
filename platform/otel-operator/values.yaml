@@ -1,0 +1,12 @@
+# check keys: helm show values open-telemetry/opentelemetry-operator --version <v> | less
+manager:
+  collectorImage:
+    repository: otel/opentelemetry-collector-contrib   # recent chart versions REQUIRE this to be set
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { memory: 256Mi }
+admissionWebhooks:
+  certManager:
+    enabled: false          # no cert-manager in the lab...
+  autoGenerateCert:
+    enabled: true           # ...so the chart generates a self-signed webhook cert

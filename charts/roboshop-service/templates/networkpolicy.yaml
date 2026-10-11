@@ -1,0 +1,56 @@
+{{- /* Ingress allow-list for this service. The namespace baseline denies everything else. */ -}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "svc.name" . }}-ingress
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "svc.selector" . | nindent 6 }}
+  policyTypes: [Ingress]
+  {{- /* Guard: an ingress rule with an empty "from" would mean ALLOW ALL. Only render when there are sources. */}}
+  {{- if and .Values.containerPort (or $np.ingressFrom $np.allowFromGateway $np.allowFromNamespaces) }}
+  ingress:
+    - from:
+        {{- range $np.ingressFrom }}
+        - podSelector:
+            matchLabels:
+              app: {{ . }}
+        {{- end }}
+        {{- if $np.allowFromGateway }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.route.gateway.namespace }}
+        {{- end }}
+        {{- range $np.allowFromNamespaces }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ . }}
+        {{- end }}
+  {{- end }}
+{{- if $np.allowInternetEgress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "svc.name" . }}-internet-egress
+  labels:
+    {{- include "svc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "svc.selector" . | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.169.254/32]   # no internal ranges, no instance metadata
+      ports:
+        - {protocol: TCP, port: 443}
+{{- end }}
+{{- end }}

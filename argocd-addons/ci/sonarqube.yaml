@@ -1,0 +1,35 @@
+# fast-track kit: Day 71 (the guide described this file in prose only)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sonarqube
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "15"
+spec:
+  project: default
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sonarqube
+  sources:
+    - repoURL: https://SonarSource.github.io/helm-chart-sonarqube
+      chart: sonarqube
+      targetRevision: 2026.5.1002 # pinned by scripts/ft-pin-versions.sh
+      helm:
+        releaseName: sonarqube
+        valueFiles: [$values/platform/sonarqube/values.yaml]
+    - repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+      targetRevision: main
+      path: platform/sonarqube/manifests # postgres + ExternalSecrets + HTTPRoute
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: baseline
+    retry:
+      limit: 5
+      backoff: {duration: 20s, factor: 2, maxDuration: 3m}

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: roboshop-service
+description: One generic chart for every RoboShop component (stateless APIs and, from Day 42, data stores)
+type: application
+version: 0.9.0        # fast-track kit: Rollout support + fixed helpers
+appVersion: "1.0"

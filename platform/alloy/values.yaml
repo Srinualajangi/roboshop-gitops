@@ -1,0 +1,49 @@
+# Grafana Alloy as a log shipper. Check keys: helm show values grafana/alloy --version <v> | less
+controller:
+  type: deployment
+  replicas: 1
+alloy:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { memory: 256Mi }
+  configMap:
+    create: true
+    content: |
+      // 1. find every pod in the cluster
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      // 2. turn Kubernetes metadata into a SMALL set of Loki labels
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "app"
+        }
+      }
+
+      // 3. tail logs through the API server
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.write.default.receiver]
+      }
+
+      // 4. push to Loki
+      loki.write "default" {
+        endpoint {
+          url = "http://loki.logging.svc.cluster.local:3100/loki/api/v1/push"
+        }
+      }

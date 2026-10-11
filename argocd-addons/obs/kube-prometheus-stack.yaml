@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: default
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      chart: kube-prometheus-stack
+      targetRevision: 92.3.0 # = KPS_CHART_VERSION
+      helm:
+        releaseName: kube-prometheus-stack # chart ServiceMonitors get label release=kube-prometheus-stack
+        valueFiles:
+          - $values/platform/monitoring/values.yaml
+    - repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+      targetRevision: main
+      ref: values # lets the first source read $values/...
+    - repoURL: https://github.com/Srinualajangi/roboshop-gitops.git
+      targetRevision: main
+      path: platform/monitoring # kustomize: ExternalSecret + HTTPRoutes (+ dashboards, rules later)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    managedNamespaceMetadata:
+      labels:
+        pod-security.kubernetes.io/enforce: privileged # node-exporter needs hostNetwork/hostPID/hostPath
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff: {duration: 20s, factor: 2, maxDuration: 5m}
+  ignoreDifferences:
+    # the operator's admission webhook certificate is patched at runtime -> would show OutOfSync forever
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions: ['.webhooks[]?.clientConfig.caBundle']
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jqPathExpressions: ['.webhooks[]?.clientConfig.caBundle']

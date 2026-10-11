@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: roboshop-qa
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+spec:
+  description: RoboShop qa — manual sync after a promotion PR
+  sourceRepos:
+    - https://github.com/Srinualajangi/roboshop-gitops.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: roboshop-qa
+  clusterResourceWhitelist: []          # apps may NOT create cluster-scoped objects (CRDs, ClusterRoles, Namespaces)
+  namespaceResourceBlacklist:
+    - group: ""
+      kind: ResourceQuota                 # quotas belong to the platform, not to apps
+    - group: ""
+      kind: LimitRange

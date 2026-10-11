@@ -1,0 +1,6 @@
+# Owners are auto-requested as reviewers. In a team: envs/prod → @org/sre, charts → @org/platform.
+*                  @you
+/envs/prod/        @you
+/charts/           @you
+/argocd/           @you
+/.github/          @you

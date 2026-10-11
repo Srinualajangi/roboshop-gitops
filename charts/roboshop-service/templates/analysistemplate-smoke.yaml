@@ -1,0 +1,39 @@
+{{- if and .Values.rollout.enabled .Values.rollout.smokeTest.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "svc.name" . }}-smoke
+spec:
+  args:
+    - name: base-url
+  metrics:
+    - name: smoke
+      provider:
+        job:
+          spec:
+            backoffLimit: 0
+            activeDeadlineSeconds: 120
+            template:
+              spec:
+                restartPolicy: Never
+                securityContext:
+                  runAsNonRoot: true
+                  runAsUser: 100
+                  seccompProfile: { type: RuntimeDefault }
+                containers:
+                  - name: smoke
+                    image: curlimages/curl:8.10.1        # example tag — pin a current one
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities: { drop: [ALL] }
+                    args:
+                      - sh
+                      - -c
+                      - |
+                        set -e
+                        U="{{ "{{" }}args.base-url{{ "}}" }}"
+                        echo "smoke testing $U"
+                        curl -sf -o /dev/null "$U/"                                   && echo "home page OK"
+                        curl -sf "$U/api/catalogue/categories" | grep -q '\['         && echo "catalogue API OK"
+                        curl -sf -o /dev/null "$U/api/user/uniqueid"                   && echo "user API OK"
+{{- end }}

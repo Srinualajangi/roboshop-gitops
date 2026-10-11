@@ -1,0 +1,26 @@
+{{- if and .Values.rollout.enabled .Values.rollout.successRate.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "svc.name" . }}-success-rate
+  labels: {{- include "svc.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: service-regex            # Traefik service label to measure
+  metrics:
+    - name: success-rate
+      interval: 30s
+      count: 10                      # ~5 minutes of evidence, covers the whole canary
+      failureLimit: 1                # 2 bad measurements → abort
+      inconclusiveLimit: 3
+      # NaN (no traffic) is inconclusive, not success: never "pass" a canary nobody used
+      successCondition: len(result) > 0 && !isNaN(result[0]) && result[0] >= {{ .Values.rollout.successRate.threshold }}
+      failureCondition: len(result) > 0 && !isNaN(result[0]) && result[0] < {{ .Values.rollout.successRate.threshold }}
+      provider:
+        prometheus:
+          address: {{ .Values.rollout.successRate.prometheus | quote }}
+          query: |
+            sum(rate(traefik_service_requests_total{service=~"{{ "{{" }}args.service-regex{{ "}}" }}", code!~"5.."}[1m]))
+            /
+            sum(rate(traefik_service_requests_total{service=~"{{ "{{" }}args.service-regex{{ "}}" }}"}[1m]))
+{{- end }}

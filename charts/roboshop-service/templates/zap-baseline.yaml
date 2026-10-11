@@ -1,0 +1,112 @@
+{{- if .Values.zap.enabled }}
+# DAST: OWASP ZAP baseline (passive) scan, run by Argo CD after every successful sync.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-zap-rules
+data:
+  rules.tsv: |
+{{ .Files.Get "files/zap-rules.tsv" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-zap-baseline
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation   # keep the last run's logs until the next sync
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: zap
+    spec:
+      restartPolicy: Never
+      securityContext:                       # passes Pod Security "restricted" (Day 48)
+        runAsNonRoot: true
+        runAsUser: 1000                      # the 'zap' user in the image
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: zap
+          image: {{ .Values.zap.image | default "ghcr.io/zaproxy/zaproxy:stable" }}
+          args:
+            - zap-baseline.py
+            - -t
+            - {{ .Values.zap.target | quote }}
+            - -c
+            - /zap/config/rules.tsv         # absolute path to the mounted rules
+            - -m
+            - "2"                           # spider for up to 2 minutes
+            - -I                            # WARN findings don't fail the job; FAIL rules do
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 1536Mi
+          volumeMounts:
+            - name: wrk
+              mountPath: /zap/wrk
+            - name: rules
+              mountPath: /zap/config
+      volumes:
+        - name: wrk
+          emptyDir: {}
+        - name: rules
+          configMap:
+            name: {{ .Release.Name }}-zap-rules
+---
+# default-deny is on (Day 47): let the ZAP pod talk to DNS and to web, and let web accept it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-zap-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: zap
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: web
+      ports:
+        - { port: 8080, protocol: TCP }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-allow-zap-to-web
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: zap
+      ports:
+        - { port: 8080, protocol: TCP }
+{{- end }}
