@@ -97,3 +97,10 @@ spec:
       min: {cpu: 10m, memory: 16Mi}
     - type: PersistentVolumeClaim
       max: {storage: 5Gi}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: traefik
+  labels:
+    team: platform
