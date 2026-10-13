@@ -41,15 +41,8 @@ startupProbe:
   periodSeconds: 5
   failureThreshold: 36
 podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 999
-  runAsGroup: 999
-  fsGroup: 999
-  seccompProfile:
-    type: RuntimeDefault
+  fsGroup: 999              # keeps /var/lib/mysql owned by mysql group
 securityContext:
   allowPrivilegeEscalation: false
   readOnlyRootFilesystem: false
-  capabilities:
-    drop:
-      - ALL
+  # No runAsNonRoot, no runAsUser, no capabilities drop
