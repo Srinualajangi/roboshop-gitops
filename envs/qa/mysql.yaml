@@ -28,9 +28,9 @@ persistence:
 resources:
   requests:
     cpu: 100m
-    memory: 512Mi
+    memory: 1Gi
   limits:
-    memory: 768Mi
+    memory: 2Gi
 readinessProbe:
   tcpSocket:
     port: mysql
