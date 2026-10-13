@@ -4,7 +4,7 @@ metadata:
   name: roboshop
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]   # a typo in a parameter fails loudly instead of rendering ""
