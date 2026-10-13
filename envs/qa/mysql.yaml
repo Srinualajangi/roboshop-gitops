@@ -3,8 +3,8 @@ tier: data
 workload: StatefulSet
 image:
   repository: roboshop/mysql
-  tag: not-built-yet
-  digest: ''
+  tag: ec6c30f
+  digest: 'sha256:6365d59589f6af1fc243e23b124c6ba06e349ac6f39217d28054b962d0a5108d'
 portName: mysql
 containerPort: 3306
 service:

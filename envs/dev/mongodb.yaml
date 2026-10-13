@@ -3,8 +3,8 @@ tier: data
 workload: StatefulSet
 image:
   repository: roboshop/mongodb
-  tag: not-built-yet
-  digest: ''
+  tag: ec6c30f
+  digest: 'sha256:cfc43f12dae0181d95131b9bd9f54b364f7ecc100a53584ea93b56c4cace2d4a'
 portName: mongo
 containerPort: 27017
 service:

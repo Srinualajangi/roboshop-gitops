@@ -2,8 +2,8 @@
 tier: web
 image:
   repository: roboshop/web
-  tag: not-built-yet
-  digest: ''
+  tag: ec6c30f
+  digest: 'sha256:5b642b75ee0e3a97b4b6e4983011e92b20f0d4262bcfdd72432228e515cc1b1c'
 env:
   CATALOGUE_HOST: catalogue
   USER_HOST: user
